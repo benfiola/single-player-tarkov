@@ -1,0 +1,399 @@
+package main
+
+import (
+	"context"
+	_ "embed"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"slices"
+	"strconv"
+	"strings"
+	"time"
+)
+
+var (
+	defaultGid = "1000"
+	defaultUid = "1000"
+	envGid     = "GID"
+	envModUrls = "MOD_URLS"
+	envUid     = "UID"
+	logger     = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
+	pathData   = "/data"
+	pathServer = "/server"
+)
+
+type CmdOpts struct {
+	Attach  bool
+	Context context.Context
+	Cwd     string
+	Env     []string
+	User    *User
+}
+
+func runCmd(commandSlice []string, opts CmdOpts) (string, error) {
+	if opts.User != nil {
+		commandSlice = append([]string{"gosu", fmt.Sprintf("%d:%d", opts.User.Uid, opts.User.Gid)}, commandSlice...)
+	}
+
+	logger.Info("run cmd", "command", strings.Join(commandSlice, " "))
+
+	ctx := opts.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	stderrBuffer := strings.Builder{}
+	stdoutBuffer := strings.Builder{}
+	command := exec.CommandContext(ctx, commandSlice[0], commandSlice[1:]...)
+	command.Stderr = &stderrBuffer
+	command.Stdout = &stdoutBuffer
+	if opts.Attach {
+		command.Stderr = os.Stderr
+		command.Stdin = os.Stdin
+		command.Stdout = os.Stdout
+	}
+	if opts.Cwd != "" {
+		command.Dir = opts.Cwd
+	}
+	if opts.Env != nil {
+		command.Env = opts.Env
+	}
+
+	err := command.Run()
+	if err != nil && !opts.Attach {
+		logger.Error("run cmd failed", "command", strings.Join(commandSlice, " "), "stderr", stderrBuffer.String())
+	}
+
+	return stdoutBuffer.String(), err
+}
+
+type User struct {
+	Uid int
+	Gid int
+}
+
+func getUserFromEnv() (User, error) {
+	fail := func(err error) (User, error) {
+		return User{}, err
+	}
+
+	getIntFromEnv := func(name string, defaultValue string) (int, error) {
+		envValStr := os.Getenv(name)
+		if envValStr == "" {
+			envValStr = defaultValue
+		}
+		return strconv.Atoi(envValStr)
+	}
+
+	gid, err := getIntFromEnv(envGid, defaultGid)
+	if err != nil {
+		return fail(err)
+	}
+	uid, err := getIntFromEnv(envUid, defaultUid)
+	if err != nil {
+		return fail(err)
+	}
+
+	return User{Gid: gid, Uid: uid}, nil
+}
+
+func getCurrentUser() User {
+	return User{
+		Gid: os.Getgid(),
+		Uid: os.Getuid(),
+	}
+}
+
+func extract(src string, dest string) error {
+	logger.Info("extract", "src", src, "dest", dest)
+
+	_, err := os.Lstat(dest)
+	if os.IsNotExist(err) {
+		logger.Info("create directory", "path", dest)
+		err = os.MkdirAll(dest, 0755)
+	}
+	if err != nil {
+		return err
+	}
+
+	if strings.HasSuffix(src, ".zip") {
+		_, err := runCmd([]string{"unzip", "-o", src, "-d", dest}, CmdOpts{})
+		return err
+	}
+	return fmt.Errorf("unrecongized file type %s", src)
+}
+
+type downloadCb func(path string) error
+
+func download(url string, cb downloadCb) error {
+	tempDir, err := os.MkdirTemp("", "")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tempDir)
+
+	baseName := filepath.Base(url)
+	tempFile := filepath.Join(tempDir, baseName)
+	handle, err := os.Create(tempFile)
+	if err != nil {
+		return err
+	}
+	defer handle.Close()
+
+	logger.Info("download", "url", url, "file", tempFile)
+	response, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("GET %s sent non-200 status code: %d", url, response.StatusCode)
+	}
+
+	chunkSize := 1024 * 1024
+	_, err = io.CopyBuffer(handle, response.Body, make([]byte, chunkSize))
+	if err != nil {
+		return err
+	}
+
+	return cb(tempFile)
+}
+
+func installMods(modUrls ...string) error {
+	slices.Sort(modUrls)
+	for _, modUrl := range modUrls {
+		logger.Info("install mod", "url", modUrl)
+		download(modUrl, func(modPath string) error {
+			return extract(modPath, pathServer)
+		})
+	}
+	return nil
+}
+
+func getModUrlsFromEnv() []string {
+	modUrls := []string{}
+	modUrlString := os.Getenv(envModUrls)
+	if modUrlString == "" {
+		return modUrls
+	}
+	for _, modUrl := range strings.Split(modUrlString, ",") {
+		modUrl = strings.TrimSpace(modUrl)
+		if modUrl == "" {
+			continue
+		}
+		modUrls = append(modUrls, modUrl)
+	}
+	return modUrls
+}
+
+func initializeServer() error {
+	logger.Info("initialize server")
+
+	pathServerBin := filepath.Join(pathServer, "SPT.Server.exe")
+
+	start := time.Now()
+	timeout := 60 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	complete := make(chan bool, 1)
+	var err error
+	go func() {
+		logger.Info("start server")
+		_, err = runCmd([]string{pathServerBin}, CmdOpts{Context: ctx, Cwd: pathServer})
+		complete <- true
+	}()
+
+	go func() {
+		isComplete := func() bool {
+			select {
+			case <-complete:
+				return true
+			default:
+				return false
+			}
+		}
+		ticker := time.NewTicker(1 * time.Second)
+		for range ticker.C {
+			if isComplete() {
+				break
+			}
+			response, err := http.Get("http://localhost:6969")
+			if err != nil || response.StatusCode != 200 {
+				continue
+			}
+			logger.Info("server initialized")
+			cancel()
+			break
+		}
+	}()
+
+	<-complete
+	if time.Since(start) > timeout {
+		err = fmt.Errorf("command timed out")
+	} else {
+		select {
+		case <-ctx.Done():
+			err = nil
+		default:
+		}
+	}
+
+	return err
+}
+
+func configureSptServer() error {
+	pathHttpConfig := filepath.Join(pathServer, "SPT_Data", "Server", "configs", "http.json")
+	logger.Info("configuring", "path", pathHttpConfig)
+	dataBytes, err := os.ReadFile(pathHttpConfig)
+	if err != nil {
+		return err
+	}
+	data := map[string]any{}
+	err = json.Unmarshal(dataBytes, &data)
+	if err != nil {
+		return err
+	}
+	data["ip"] = "0.0.0.0"
+	data["backendIp"] = "0.0.0.0"
+	dataBytes, err = json.Marshal(&data)
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile(pathHttpConfig, dataBytes, 0755)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func configureServer() error {
+	err := configureSptServer()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func runServer() error {
+	pathServerBin := filepath.Join(pathServer, "SPT.Server.exe")
+	_, err := runCmd([]string{pathServerBin}, CmdOpts{Attach: true, Cwd: pathServer})
+	return err
+}
+
+func entrypoint() error {
+	err := installMods(getModUrlsFromEnv()...)
+	if err != nil {
+		return err
+	}
+
+	err = initializeServer()
+	if err != nil {
+		return err
+	}
+
+	err = configureServer()
+	if err != nil {
+		return err
+	}
+
+	return runServer()
+}
+
+type DirOpts struct {
+	Owner *User
+}
+
+func createDirectories(owner User, paths ...string) error {
+	slices.Sort(paths)
+
+	for _, path := range paths {
+		_, err := os.Stat(path)
+		if err != nil {
+			if !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+			logger.Info("create directory", "path", path)
+			err := os.MkdirAll(path, 0755)
+			if err != nil {
+				return err
+			}
+		}
+
+		logger.Info("ensure directory ownership", "gid", owner.Gid, "uid", owner.Uid)
+		_, err = runCmd([]string{"chown", "-R", fmt.Sprintf("%d:%d", owner.Uid, owner.Gid), path}, CmdOpts{})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func preEntrypoint() error {
+	logger.Info("pre-entrypoint")
+
+	user := getCurrentUser()
+
+	if getCurrentUser().Uid == 0 {
+		var err error
+		user, err = getUserFromEnv()
+		if err != nil {
+			return err
+		}
+	}
+
+	err := createDirectories(user, pathData, pathServer)
+	if err != nil {
+		return err
+	}
+
+	executable, err := os.Executable()
+	if err != nil {
+		return err
+	}
+
+	_, err = runCmd([]string{executable, "entrypoint"}, CmdOpts{Attach: true, User: &user})
+	return err
+}
+
+//go:embed version.txt
+var versionString string
+
+func version() error {
+	fmt.Print(strings.TrimSpace(versionString))
+	return nil
+}
+
+func main() {
+	args := os.Args[1:]
+	if len(args) == 0 {
+		args = append(args, "pre-entrypoint")
+	}
+
+	var err error
+	switch args[0] {
+	case "entrypoint":
+		err = entrypoint()
+	case "pre-entrypoint":
+		err = preEntrypoint()
+	case "version":
+		err = version()
+	default:
+		err = fmt.Errorf("unknown command: %s", args[0])
+	}
+
+	code := 0
+	if err != nil {
+		code = 1
+		logger.Error(err.Error())
+	}
+	os.Exit(code)
+}

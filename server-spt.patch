@@ -1,0 +1,13 @@
+diff --git a/project/src/Program.ts b/project/src/Program.ts
+index 167cdc94..8f1e8edc 100644
+--- a/project/src/Program.ts
++++ b/project/src/Program.ts
+@@ -9,7 +9,7 @@ export class Program {
+     private errorHandler: ErrorHandler;
+     constructor() {
+         // set window properties
+-        process.stdout.setEncoding("utf8");
++        // process.stdout.setEncoding("utf8");
+         process.title = "SPT Server";
+         this.errorHandler = new ErrorHandler();
+     }

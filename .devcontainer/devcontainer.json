@@ -1,0 +1,40 @@
+{
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "esbenp.prettier-vscode",
+        "golang.go",
+        "rohit-gohri.format-code-action"
+      ],
+      "settings": {
+        "editor.codeActionsOnSave": [
+          "source.organizeImports",
+          "source.formatDocument"
+        ],
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "[go]": {
+          "editor.defaultFormatter": "golang.go"
+        }
+      }
+    }
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/go:1": {
+      "version": "1.23.4"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20.11.1"
+    },
+    "ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
+      "packages": ["curl", "git", "git-lfs", "vim", "unzip"]
+    }
+  },
+  "image": "ubuntu:noble",
+  "postCreateCommand": ".devcontainer/post-create.sh",
+  "remoteEnv": {
+    "SPT_SERVER_VERSION": "3.10.5",
+    "FIKA_SERVER_VERSION": "2.3.6",
+    "MODSYNC_VERSION": "0.10.2"
+  }
+}
