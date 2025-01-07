@@ -37,7 +37,7 @@ type CmdOpts struct {
 }
 
 func runCmd(commandSlice []string, opts CmdOpts) (string, error) {
-	if opts.User != nil {
+	if opts.User != nil && *opts.User != getCurrentUser() {
 		commandSlice = append([]string{"gosu", fmt.Sprintf("%d:%d", opts.User.Uid, opts.User.Gid)}, commandSlice...)
 	}
 
@@ -363,6 +363,7 @@ func preEntrypoint() error {
 	if err != nil {
 		return err
 	}
+
 	_, err = runCmd([]string{executable, "entrypoint"}, CmdOpts{Attach: true, User: &user})
 	return err
 }
