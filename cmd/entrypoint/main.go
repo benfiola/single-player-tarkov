@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	osuser "os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -18,14 +19,13 @@ import (
 )
 
 var (
-	defaultGid = "1000"
-	defaultUid = "1000"
 	envGid     = "GID"
 	envModUrls = "MOD_URLS"
 	envUid     = "UID"
 	logger     = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
 	pathData   = "/data"
 	pathServer = "/server"
+	userName   = "eft"
 )
 
 type CmdOpts struct {
@@ -78,24 +78,51 @@ type User struct {
 	Gid int
 }
 
+func getNonRootUser() (User, error) {
+	fail := func(err error) (User, error) {
+		return User{}, err
+	}
+
+	userLookup, err := osuser.Lookup(userName)
+	if err != nil {
+		return fail(err)
+	}
+
+	gid, err := strconv.Atoi(userLookup.Gid)
+	if err != nil {
+		return fail(err)
+	}
+	uid, err := strconv.Atoi(userLookup.Uid)
+	if err != nil {
+		return fail(err)
+	}
+
+	return User{Gid: gid, Uid: uid}, nil
+}
+
 func getUserFromEnv() (User, error) {
 	fail := func(err error) (User, error) {
 		return User{}, err
 	}
 
-	getIntFromEnv := func(name string, defaultValue string) (int, error) {
+	getIntFromEnv := func(name string, defaultValue int) (int, error) {
 		envValStr := os.Getenv(name)
 		if envValStr == "" {
-			envValStr = defaultValue
+			envValStr = strconv.Itoa(defaultValue)
 		}
 		return strconv.Atoi(envValStr)
 	}
 
-	gid, err := getIntFromEnv(envGid, defaultGid)
+	eftUser, err := getNonRootUser()
 	if err != nil {
 		return fail(err)
 	}
-	uid, err := getIntFromEnv(envUid, defaultUid)
+
+	gid, err := getIntFromEnv(envGid, eftUser.Gid)
+	if err != nil {
+		return fail(err)
+	}
+	uid, err := getIntFromEnv(envUid, eftUser.Uid)
 	if err != nil {
 		return fail(err)
 	}
@@ -341,6 +368,35 @@ func setDirectoryOwner(owner User, paths ...string) error {
 	return nil
 }
 
+func updateNonRootUser(user User) error {
+	if user.Uid == 0 {
+		return fmt.Errorf("refusing to update eft user to uid 0")
+	}
+
+	eftUser, err := getNonRootUser()
+	if err != nil {
+		return err
+	}
+
+	if user.Uid != eftUser.Uid {
+		logger.Info("change uid", "user", userName, "from", eftUser.Uid, "to", user.Uid)
+		_, err := runCmd([]string{"usermod", "-u", strconv.Itoa(user.Uid), userName}, CmdOpts{})
+		if err != nil {
+			return err
+		}
+	}
+
+	if user.Gid != eftUser.Gid {
+		logger.Info("change gid", "user", userName, "from", eftUser.Gid, "to", user.Gid)
+		_, err := runCmd([]string{"groupmod", "-g", strconv.Itoa(user.Gid), userName}, CmdOpts{})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func preEntrypoint() error {
 	logger.Info("pre-entrypoint")
 
@@ -349,6 +405,11 @@ func preEntrypoint() error {
 	if getCurrentUser().Uid == 0 {
 		var err error
 		user, err = getUserFromEnv()
+		if err != nil {
+			return err
+		}
+
+		err = updateNonRootUser(user)
 		if err != nil {
 			return err
 		}

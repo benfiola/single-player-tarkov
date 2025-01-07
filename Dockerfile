@@ -29,10 +29,15 @@ RUN apt -y update && \
 FROM ubuntu:noble AS final
 ARG TARGETARCH
 WORKDIR /
-EXPOSE 6969/tcp
-EXPOSE 25565/udp
-RUN apt -y update && \
-    apt -y install curl gosu unzip
 COPY --from=entrypoint /entrypoint /entrypoint
 COPY --from=server /server /server
+RUN apt -y update && \
+    apt -y install curl gosu unzip && \
+    userdel ubuntu && \
+    groupadd --gid=1000 eft && \
+    useradd --gid=eft --system --uid=1000 --home /data eft && \
+    chown -R eft:eft /data /server
+EXPOSE 6969/tcp
+EXPOSE 25565/udp
+VOLUME /data
 ENTRYPOINT ["/entrypoint"]
