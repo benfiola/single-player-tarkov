@@ -36,6 +36,7 @@ RUN apt -y update && \
     userdel ubuntu && \
     groupadd --gid=1000 eft && \
     useradd --gid=eft --system --uid=1000 --home /data eft && \
+    mkdir -p /data && \
     chown -R eft:eft /data /server
 EXPOSE 6969/tcp
 EXPOSE 25565/udp
