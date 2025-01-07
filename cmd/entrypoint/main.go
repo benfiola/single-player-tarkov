@@ -12,7 +12,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -111,14 +110,24 @@ func getCurrentUser() User {
 	}
 }
 
+func createDirectories(paths ...string) error {
+	for _, path := range paths {
+		_, err := os.Stat(path)
+		if errors.Is(err, os.ErrNotExist) {
+			logger.Info("create directory", "path", path)
+			err = os.MkdirAll(path, 0755)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func extract(src string, dest string) error {
 	logger.Info("extract", "src", src, "dest", dest)
 
-	_, err := os.Lstat(dest)
-	if os.IsNotExist(err) {
-		logger.Info("create directory", "path", dest)
-		err = os.MkdirAll(dest, 0755)
-	}
+	err := createDirectories(dest)
 	if err != nil {
 		return err
 	}
@@ -167,7 +176,6 @@ func download(url string, cb downloadCb) error {
 }
 
 func installMods(modUrls ...string) error {
-	slices.Sort(modUrls)
 	for _, modUrl := range modUrls {
 		logger.Info("install mod", "url", modUrl)
 		download(modUrl, func(modPath string) error {
@@ -289,7 +297,12 @@ func runServer() error {
 }
 
 func entrypoint() error {
-	err := installMods(getModUrlsFromEnv()...)
+	err := createDirectories(pathData, pathServer)
+	if err != nil {
+		return err
+	}
+
+	err = installMods(getModUrlsFromEnv()...)
 	if err != nil {
 		return err
 	}
@@ -312,19 +325,10 @@ type DirOpts struct {
 }
 
 func setDirectoryOwner(owner User, paths ...string) error {
-	slices.Sort(paths)
-
 	for _, path := range paths {
-		_, err := os.Stat(path)
+		err := createDirectories(path)
 		if err != nil {
-			if !errors.Is(err, os.ErrNotExist) {
-				return err
-			}
-			logger.Info("create directory", "path", path)
-			err := os.MkdirAll(path, 0755)
-			if err != nil {
-				return err
-			}
+			return err
 		}
 
 		logger.Info("ensure directory ownership", "gid", owner.Gid, "uid", owner.Uid)
