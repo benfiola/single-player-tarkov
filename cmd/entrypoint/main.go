@@ -311,7 +311,7 @@ type DirOpts struct {
 	Owner *User
 }
 
-func createDirectories(owner User, paths ...string) error {
+func setDirectoryOwner(owner User, paths ...string) error {
 	slices.Sort(paths)
 
 	for _, path := range paths {
@@ -348,18 +348,17 @@ func preEntrypoint() error {
 		if err != nil {
 			return err
 		}
-	}
 
-	err := createDirectories(user, pathData, pathServer)
-	if err != nil {
-		return err
+		err = setDirectoryOwner(user, pathData, pathServer)
+		if err != nil {
+			return err
+		}
 	}
 
 	executable, err := os.Executable()
 	if err != nil {
 		return err
 	}
-
 	_, err = runCmd([]string{executable, "entrypoint"}, CmdOpts{Attach: true, User: &user})
 	return err
 }
