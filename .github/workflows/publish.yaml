@@ -41,7 +41,7 @@ jobs:
           spt_server_version="${{env.spt_server_version}}"
           fika_server_version="${{env.fika_server_version}}"
 
-          docker_image="docker.io/${{env.image_base}}:${tag}"
+          docker_image="docker.io/${{env.image_base}}:${docker_tag}"
 
           echo "docker_image=${docker_image}" >> "${GITHUB_OUTPUT}"
           echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
