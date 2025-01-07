@@ -6,7 +6,7 @@ on:
       - main
       - dev
 
-run-name: ${{inputs.manifest_id}}
+run-name: ${{github.sha}}
 
 jobs:
   publish:
@@ -19,6 +19,9 @@ jobs:
       name: publish
     concurrency:
       group: ${{github.workflow}}
+    permissions:
+      id-token: write
+      contents: write
     steps:
       - name: checkout
         uses: actions/checkout@v4
