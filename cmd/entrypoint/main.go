@@ -323,6 +323,38 @@ func runServer() error {
 	return err
 }
 
+func symlinkPersistentData() error {
+	serverProfiles := filepath.Join(pathServer, "user", "profiles")
+	persistentProfiles := filepath.Join(pathData, "user", "profiles")
+	serverProfilesParent := filepath.Dir(serverProfiles)
+
+	logger.Info("ensure directory", "path", serverProfilesParent)
+	err := os.MkdirAll(filepath.Dir(serverProfilesParent), 0755)
+	if err != nil {
+		return err
+	}
+
+	logger.Info("remove directory", "path", serverProfiles)
+	err = os.RemoveAll(serverProfiles)
+	if err != nil {
+		return err
+	}
+
+	logger.Info("ensure directory", "path", persistentProfiles)
+	err = os.MkdirAll(persistentProfiles, 0755)
+	if err != nil {
+		return err
+	}
+
+	logger.Info("symlink directory", "from", persistentProfiles, "to", serverProfiles)
+	err = os.Symlink(persistentProfiles, serverProfiles)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func entrypoint() error {
 	err := createDirectories(pathData, pathServer)
 	if err != nil {
@@ -340,6 +372,11 @@ func entrypoint() error {
 	}
 
 	err = configureServer()
+	if err != nil {
+		return err
+	}
+
+	err = symlinkPersistentData()
 	if err != nil {
 		return err
 	}

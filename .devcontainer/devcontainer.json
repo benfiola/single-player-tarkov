@@ -27,14 +27,12 @@
       "version": "20.11.1"
     },
     "ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
-      "packages": ["curl", "git", "git-lfs", "vim", "unzip"]
+      "packages": ["curl", "git", "git-lfs", "gosu", "vim", "unzip"]
     }
   },
   "image": "ubuntu:noble",
   "postCreateCommand": ".devcontainer/post-create.sh",
   "remoteEnv": {
-    "SPT_SERVER_VERSION": "3.10.5",
-    "FIKA_SERVER_VERSION": "2.3.6",
-    "MODSYNC_VERSION": "0.10.2"
+    "SPT_SERVER_VERSION": "3.10.5"
   }
 }

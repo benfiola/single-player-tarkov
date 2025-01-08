@@ -14,7 +14,6 @@ jobs:
     env:
       image_base: benfiola/escape-from-tarkov
       spt_server_version: "3.10.5"
-      fika_server_version: "2.3.6"
     environment:
       name: publish
     concurrency:
@@ -37,16 +36,14 @@ jobs:
         run: |
           version="$(versionctl next)"
           tag="$(versionctl convert "${version}" git)"
-          docker_tag="$(versionctl convert "${version}" docker)-spt${spt_server_version}-fika${fika_server_version}"
+          docker_tag="$(versionctl convert "${version}" docker)-spt${spt_server_version}"
           spt_server_version="${{env.spt_server_version}}"
-          fika_server_version="${{env.fika_server_version}}"
 
           docker_image="docker.io/${{env.image_base}}:${docker_tag}"
 
           echo "docker_image=${docker_image}" >> "${GITHUB_OUTPUT}"
           echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
           echo "spt_server_version=${spt_server_version}" >> "${GITHUB_OUTPUT}"
-          echo "fika_server_version=${fika_server_version}" >> "${GITHUB_OUTPUT}"
       - name: create git tag
         uses: actions/github-script@v7
         with:
@@ -74,4 +71,3 @@ jobs:
             ${{steps.facts.outputs.docker_image}}
           build-args: |
             SPT_SERVER_VERSION=${{steps.facts.outputs.spt_server_version}}
-            FIKA_SERVER_VERSION=${{steps.facts.outputs.fika_server_version}}
