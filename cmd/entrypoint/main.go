@@ -162,6 +162,9 @@ func extract(src string, dest string) error {
 	if strings.HasSuffix(src, ".zip") {
 		_, err := runCmd([]string{"unzip", "-o", src, "-d", dest}, CmdOpts{})
 		return err
+	} else if strings.HasSuffix(src, ".7z") {
+		_, err := runCmd([]string{"7z", "x", src, "-o", dest}, CmdOpts{})
+		return err
 	}
 	return fmt.Errorf("unrecongized file type %s", src)
 }

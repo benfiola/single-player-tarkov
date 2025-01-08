@@ -31,7 +31,7 @@ WORKDIR /
 COPY --from=entrypoint /entrypoint /entrypoint
 COPY --from=server /server /server
 RUN apt -y update && \
-    apt -y install curl gosu unzip && \
+    apt -y install curl gosu p7zip-full unzip && \
     userdel ubuntu && \
     groupadd --gid=1000 eft && \
     useradd --gid=eft --system --uid=1000 --home /data eft && \

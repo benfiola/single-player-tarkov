@@ -27,7 +27,15 @@
       "version": "20.11.1"
     },
     "ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
-      "packages": ["curl", "git", "git-lfs", "gosu", "vim", "unzip"]
+      "packages": [
+        "curl",
+        "git",
+        "git-lfs",
+        "gosu",
+        "p7zip-full",
+        "vim",
+        "unzip"
+      ]
     }
   },
   "image": "ubuntu:noble",
