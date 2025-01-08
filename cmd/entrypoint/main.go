@@ -208,9 +208,12 @@ func download(url string, cb downloadCb) error {
 func installMods(modUrls ...string) error {
 	for _, modUrl := range modUrls {
 		logger.Info("install mod", "url", modUrl)
-		download(modUrl, func(modPath string) error {
+		err := download(modUrl, func(modPath string) error {
 			return extract(modPath, pathServer)
 		})
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
