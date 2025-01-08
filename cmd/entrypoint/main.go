@@ -240,7 +240,7 @@ func initializeServer() error {
 	pathServerBin := filepath.Join(pathServer, "SPT.Server.exe")
 
 	start := time.Now()
-	timeout := 60 * time.Second
+	timeout := 120 * time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	complete := make(chan bool, 1)
