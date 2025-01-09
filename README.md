@@ -2,6 +2,11 @@
 
 This repo hosts the supporting files and code to provide a [Single-player Tarkov](https://sp-tarkov.com/) server docker image for the game [Escape from Tarkov](https://www.escapefromtarkov.com/?lang=en).
 
+## Usage
+
+Docker images are hosted on the [Docker hub](https://hub.docker.com/r/benfiola/escape-from-tarkov).  Currently, images are tagged with the following format: `<entrypoint version>-spt<spt version>`.
+
+The current
 ## Environment Variables
 
 Docker containers based off of this image rely upon the environment for configuration. Here are the current settings:
