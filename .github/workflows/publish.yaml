@@ -33,6 +33,7 @@ jobs:
         run: |
           version="$(versionctl next)"
           tag="$(versionctl convert "${version}" git)"
+          docker_image="${{env.image_base}}"
           docker_tag="$(versionctl convert "${version}" docker)"
 
           is_main="0"
