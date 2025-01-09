@@ -12,7 +12,7 @@ ENV NODE_VERSION="20.11.1"
 ENV ASDF_HOME="/asdf"
 ENV ASDF_DATA_DIR="${ASDF_HOME}"
 ENV ASDF_VERSION="0.15.0"
-ENV PATH="${ASDF_DATA_DIR}/installs/nodejs/20.11.1/bin:${ASDF_HOME}/bin:${PATH}"
+ENV PATH="${ASDF_DATA_DIR}/installs/nodejs/${NODE_VERSION}/bin:${ASDF_HOME}/bin:${PATH}"
 WORKDIR /
 ADD server-build.sh server-build.sh
 ADD server-spt.patch server-spt.patch
