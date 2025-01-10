@@ -21,6 +21,7 @@ RUN apt -y update && \
     git clone https://github.com/asdf-vm/asdf.git "${ASDF_HOME}" --branch "v${ASDF_VERSION}" && \
     asdf plugin add nodejs && \
     asdf install nodejs "${NODE_VERSION}" && \
+    chmod +x /server-build.sh && \
     /server-build.sh && \
     rm -rf "${ASDF_HOME}" "${ASDF_DATA_DIR}" /build-server.sh
 

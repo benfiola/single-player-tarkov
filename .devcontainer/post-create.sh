@@ -1,3 +1,3 @@
 #!/bin/bash
 set -e
-/workspaces/escape-from-tarkov/server-build.sh
+/workspaces/single-player-tarkov/server-build.sh

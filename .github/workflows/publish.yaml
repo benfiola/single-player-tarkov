@@ -12,7 +12,7 @@ jobs:
   prepare:
     runs-on: ubuntu-latest
     env:
-      image_base: benfiola/escape-from-tarkov
+      image_base: benfiola/single-player-tarkov
     concurrency:
       group: ${{github.workflow}}
     permissions:
