@@ -39,7 +39,7 @@ Because SPT and its mods are configured via a large, non-standard, collection of
 
 Instead, configuration modifications are expressed as mapping of _file_ to list of [JSON Patches](https://jsonpatch.com/). Set `CONFIG_PATCHES` to the JSON string representation of this mapping - and your configuration changes will be applied to the default configuration within the docker container.
 
-As an example example, to configure SPT to use a different server port, you might use the following `CONFIG_PATCHES` payload:
+As an example - to configure SPT to use a different server port, you might use the following `CONFIG_PATCHES` payload:
 
 ```json
 {
