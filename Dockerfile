@@ -14,9 +14,11 @@ RUN apt -y update && \
 
 FROM ubuntu:noble AS mod
 WORKDIR /
+RUN apt -y update && \
+    apt -y install make && \
+    make mod-vendored
 ADD mod/config mod/config
 ADD mod/src mod/src
-ADD mod/vendored mod/vendored
 ADD mod/package.json mod/package.json
 
 FROM ubuntu:noble AS final
