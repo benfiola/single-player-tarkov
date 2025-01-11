@@ -377,7 +377,7 @@ func symlinkPersistentData() error {
 type ConfigPatch struct {
 	Op    string `json:"op"`
 	Path  string `json:"path"`
-	Value any    `json:"any,omitempty"`
+	Value any    `json:"value,omitempty"`
 }
 
 // ConfigPatches are a map of relative file path -> a list of config patches to apply
