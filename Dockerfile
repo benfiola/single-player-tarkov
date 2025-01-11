@@ -19,7 +19,7 @@ ADD mod/config mod/config
 ADD mod/src mod/src
 ADD mod/package.json mod/package.json
 RUN apt -y update && \
-    apt -y install make && \
+    apt -y install curl make tar && \
     make mod-vendored
 
 FROM ubuntu:noble AS final
