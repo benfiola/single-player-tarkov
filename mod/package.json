@@ -1,0 +1,13 @@
+{
+  "name": "docker-image-helper-mod",
+  "version": "0.0.0",
+  "author": "benfiola",
+  "license": "UNLICENSED",
+  "main": "./src/mod.js",
+  "devDependencies": {
+    "@types/node": "20.11.1",
+    "tsyringe": "4.8.0",
+    "typescript": "5.4"
+  },
+  "sptVersion": ">=0.0.0"
+}

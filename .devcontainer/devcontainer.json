@@ -12,6 +12,10 @@
           "source.formatDocument"
         ],
         "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "typescript.tsdk": "${workspaceFolder}/mod/node_modules/typescript/lib",
+        "[dockerfile]": {
+          "editor.defaultFormatter": null
+        },
         "[go]": {
           "editor.defaultFormatter": "golang.go"
         }
