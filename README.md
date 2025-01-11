@@ -44,7 +44,7 @@ As an example example, to configure SPT to use a different server port, you migh
 ```json
 {
     "SPT_Data/Server/configs/http.json": {
-        {"op": "replace", Path: "/port", Value: 12345},
+        {"op": "replace", "path": "/port", "value": 12345},
     }
 }
 ```
