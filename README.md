@@ -21,7 +21,7 @@ Docker containers based off of this image rely upon the environment for configur
 
 ## Entrypoint
 
-The core functionality of this container is controlled by the [entrypoint](./cmd/entrypoint/main.go) and is written in golang.
+The core functionality of this container is controlled by the [entrypoint](./entrypoint/main.go) and is written in golang.
 
 Prior to launching the server, the entrypoint is responsible for:
 
