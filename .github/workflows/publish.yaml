@@ -58,7 +58,7 @@ jobs:
             })
       - name: generate code
         run: |
-          echo "${{steps.facts.outputs.version}}" > cmd/entrypoint/version.txt
+          echo "${{steps.facts.outputs.version}}" > entrypoint/version.txt
       - name: upload source artifact
         uses: actions/upload-artifact@v4
         with:
