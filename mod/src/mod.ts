@@ -19,7 +19,7 @@ interface PatcherOpts {
   sptFolder: string;
 }
 
-const sectionRegex = new RegExp(`^\[([^\]]+)\]$`);
+const sectionRegex = new RegExp(/^\[([^\]]+)\]/);
 
 /**
  * Applies file patches to a variety of different file types.
@@ -77,12 +77,11 @@ class Patcher {
       throw new Error(`patch path ${patch.path} must be /section/key`);
     }
     const [section, key] = pathParts.slice(1);
-    const value = JSON.stringify(patch.value);
+    const value = `${patch.value}`;
 
     // search file for section + key, perform replacement
     const lines = (await readFile(path)).toString().split("\n");
     let currentSection: string | null = null;
-    let keyIndex: number | null = null;
     for (let index = 0; index < lines.length; index++) {
       let line = lines[index];
       const trimmedLine = line.trim();
@@ -99,7 +98,6 @@ class Patcher {
       if (currentSection === section && currentKey == key) {
         // current line is a key within the target section - perform replacement
         lines[index] = `${key} = ${value}`;
-        keyIndex = index;
         break;
       }
     }
@@ -192,7 +190,7 @@ class Mod implements IPreSptLoadModAsync {
       logger: container.resolve<ILogger>("WinstonLogger"),
       sptFolder: this.getSptFolder(),
     });
-    await this.patcher.applyPatches(patches);
+    await this.patcher.applyPatches(patches as ConfigPatches);
   }
 }
 
