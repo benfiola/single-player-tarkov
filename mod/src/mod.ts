@@ -7,6 +7,18 @@ import patches from "../config/config.json";
 import { applyOperation, Operation } from "../vendored/fast-json-patch";
 
 /**
+ * Logger interface.
+ *
+ * The SPT ILogger is wrapped such that all logging methods are prefixed with the mod name.
+ * This interface exists to ensure that all methods used by the mod are wrapped.
+ *
+ * See: [Mod.wrapLogger]
+ */
+interface ModLogger {
+  info: (msg: string) => void;
+}
+
+/**
  * The config payload (- a mapping of relative file paths to list of file patches)
  */
 type ConfigPatches = Record<string, Operation[]>;
@@ -15,7 +27,7 @@ type ConfigPatches = Record<string, Operation[]>;
  * Options used to construct a Patcher instance
  */
 interface PatcherOpts {
-  logger: ILogger;
+  logger: ModLogger;
   sptFolder: string;
 }
 
@@ -25,7 +37,7 @@ const sectionRegex = new RegExp(/^\[([^\]]+)\]/);
  * Applies file patches to a variety of different file types.
  */
 class Patcher {
-  logger: ILogger;
+  logger: ModLogger;
   sptFolder: string;
 
   constructor({ logger, sptFolder }: PatcherOpts) {
@@ -176,6 +188,21 @@ class Mod implements IPreSptLoadModAsync {
   }
 
   /**
+   * Wraps an SPT logger - producing a logger that emits a prefix before every message.
+   *
+   * @param logger the logger to wrap
+   * @returns a wrapped logger
+   */
+  wrapLogger(logger: ILogger): ModLogger {
+    const prefix = "[docker-image-helper-mod]: ";
+    return {
+      ...logger,
+      info: (msg: string) => {
+        logger.info(`${prefix}${msg}`);
+      },
+    };
+  }
+  /**
    * Implements IPreSptLoadModAsync.
    *
    * Grabs necessary data, creates a patcher and applies patches.
@@ -183,11 +210,12 @@ class Mod implements IPreSptLoadModAsync {
    * @param container the DI container provided by SPT
    */
   public async preSptLoadAsync(container: DependencyContainer) {
-    const logger = container.resolve<ILogger>("WinstonLogger");
-    logger.info("mod loaded");
+    const logger = this.wrapLogger(container.resolve<ILogger>("WinstonLogger"));
+
+    logger.info("mod starting");
 
     this.patcher = new Patcher({
-      logger: container.resolve<ILogger>("WinstonLogger"),
+      logger,
       sptFolder: this.getSptFolder(),
     });
     await this.patcher.applyPatches(patches as ConfigPatches);
