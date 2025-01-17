@@ -2,6 +2,4 @@
 
 entrypoint/data
 entrypoint/spt
-mod/node_modules
-mod/types
-spt 
+spt

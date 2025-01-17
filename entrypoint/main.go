@@ -16,6 +16,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	jsonpatch "github.com/evanphx/json-patch/v5"
 )
 
 // Obtains the current working directory
@@ -383,6 +385,15 @@ type ConfigPatch struct {
 // ConfigPatches are a map of relative file path -> a list of config patches to apply
 type ConfigPatches map[string][]ConfigPatch
 
+// Returns the number of patches in the [ConfigPatches] object
+func (cps ConfigPatches) Count() int {
+	total := 0
+	for _, filePatches := range cps {
+		total += len(filePatches)
+	}
+	return total
+}
+
 // Fetches [ConfigPatches] from the environment.
 // Returns an error if parsing the JSON fails.
 // Returns an empty map if the environment variable is not set.
@@ -405,19 +416,66 @@ func getConfigPatchesFromEnv() (ConfigPatches, error) {
 	return configPatches, nil
 }
 
-// Installs [ConfigPatches] to the helper mod config file location.
-// Returns an error if serializing [ConfigPatches] fail
-// Returns an error if writing the file fails.
-func installConfigPatches(configPatches ConfigPatches) error {
-	pathModConfig := filepath.Join(pathSpt, "user", "mods", modName, "config", "config.json")
-	configPatchesBytes, err := json.Marshal(configPatches)
+// Applies a single [ConfigPatch] to the file located at [pathSpt] + [relPath]
+// Returns an error if relPath is not a relative path.
+// Returns an error if the resulting absolute path to the file being patched cannot be found, read or written to.
+// Returns an error if the patch cannot be applied to the document
+func applyConfigPatch(relPath string, patch ConfigPatch) error {
+	if strings.HasPrefix(relPath, "/") {
+		return fmt.Errorf("patch path %s not relative", relPath)
+	}
+
+	path := filepath.Join(pathSpt, relPath)
+	_, err := os.Lstat(path)
 	if err != nil {
 		return err
 	}
 
-	err = os.WriteFile(pathModConfig, configPatchesBytes, 0755)
+	doc, err := os.ReadFile(path)
 	if err != nil {
 		return err
+	}
+
+	patchBytes, err := json.Marshal([]ConfigPatch{patch})
+	if err != nil {
+		return err
+	}
+
+	jsonPatch, err := jsonpatch.DecodePatch(patchBytes)
+	if err != nil {
+		return err
+	}
+
+	newDoc, err := jsonPatch.ApplyIndent(doc, "  ")
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(path, newDoc, 0755)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Applies config patches to files located in the spt server path
+func applyConfigPatches(configPatches ConfigPatches) error {
+	logger.Info("apply config patches", "count", configPatches.Count())
+
+	failed := false
+	for relPath, patches := range configPatches {
+		for _, patch := range patches {
+			err := applyConfigPatch(relPath, patch)
+			logger.Info("apply config patch", "patch", patch, "error", err)
+			if err != nil {
+				failed = true
+			}
+		}
+	}
+
+	if failed {
+		return fmt.Errorf("failed to apply patches")
 	}
 
 	return nil
@@ -440,29 +498,6 @@ func mergeConfigPatches(maps ...ConfigPatches) ConfigPatches {
 	return data
 }
 
-// Configures the server to load the helper mod first (as it configures spt and other mods)
-// Returns an error if the mod order payload cannot be serialized
-// Returns an error if the config file write fails.
-func setModLoadOrder() error {
-	logger.Info("set mod load order")
-
-	modOrder := map[string]any{
-		"order": []string{modName},
-	}
-	modOrderBytes, err := json.Marshal(modOrder)
-	if err != nil {
-		return err
-	}
-
-	pathOrderFile := filepath.Join(pathSpt, "user", "mods", "order.json")
-	err = os.WriteFile(pathOrderFile, modOrderBytes, 0755)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // Performs the pre-launch setup of the server.
 // This includes mod installation, server and mod configuration, server intialization
 // Finally, the server is launched in the foreground and blocks until exit.
@@ -474,6 +509,11 @@ func entrypoint() error {
 	}
 
 	err = installMods(getModUrlsFromEnv()...)
+	if err != nil {
+		return err
+	}
+
+	err = initializeServer()
 	if err != nil {
 		return err
 	}
@@ -491,17 +531,7 @@ func entrypoint() error {
 		},
 		configPatches,
 	)
-	err = installConfigPatches(configPatches)
-	if err != nil {
-		return err
-	}
-
-	err = initializeServer()
-	if err != nil {
-		return err
-	}
-
-	err = setModLoadOrder()
+	err = applyConfigPatches(configPatches)
 	if err != nil {
 		return err
 	}

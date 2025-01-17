@@ -38,22 +38,3 @@ spt-build: spt-clone
 	cd $(cwd)/spt/source/project && npm run build:release
 	# move built files
 	mv $(cwd)/spt/source/project/build/ $(cwd)/spt/build
-
-.PHONY: mod-dev
-mod-dev: spt-clone mod-gen-types mod-dependencies
-	# ensure spt user directory exists
-	mkdir -p $(cwd)/spt/source/project/user/mods
-	# create new symlink
-	ln -sf $(cwd)/mod $(cwd)/spt/source/project/user/mods/docker-image-helper-mod
-
-.PHONY: mod-dependencies
-mod-dependencies:
-	# install mod dependencies
-	cd $(cwd)/mod && npm install
-
-.PHONY: mod-gen-types
-mod-gen-types: spt-clone
-	# generate spt types
-	cd $(cwd)/spt/source/project && npm run gen:types
-	# copy types to mod src directory
-	mv $(cwd)/spt/source/project/types $(cwd)/mod/types

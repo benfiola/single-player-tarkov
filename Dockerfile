@@ -12,22 +12,10 @@ RUN apt -y update && \
     apt -y install git git-lfs make && \
     make spt-build
 
-FROM node:20.11.1-bookworm AS mod
-WORKDIR /
-ADD Makefile Makefile
-ADD mod/config mod/config
-ADD mod/src mod/src
-ADD mod/package.json mod/package.json
-ADD mod/package-lock.json mod/package-lock.json
-RUN apt -y update && \
-    apt -y install curl make tar && \
-    make mod-dependencies
-
 FROM ubuntu:noble AS final
 WORKDIR /
 COPY --from=entrypoint /entrypoint /entrypoint
 COPY --from=server /spt/build /spt
-COPY --from=mod /mod /spt/user/mods/docker-image-helper-mod
 RUN apt -y update && \
     apt -y install curl gosu p7zip-full unzip && \
     userdel ubuntu && \
