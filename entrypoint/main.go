@@ -38,7 +38,6 @@ var (
 	envModUrls       = "MOD_URLS"
 	envUid           = "UID"
 	logger           = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
-	modName          = "docker-image-helper-mod"
 	pathData         = filepath.Join(requireWd(), "data")
 	pathSpt          = filepath.Join(requireWd(), "spt")
 	userName         = "spt"
