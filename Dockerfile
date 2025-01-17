@@ -1,7 +1,10 @@
 FROM golang:1.23.4 AS entrypoint
 WORKDIR /
 ADD entrypoint src
-RUN go build -o entrypoint src/main.go
+RUN cd /entrypoint && \
+    go build -o entrypoint src/main.go && \
+    cd / && \
+    mv /entrypoint/entrypoint /entrypoint
 
 FROM node:20.11.1-bookworm AS server
 WORKDIR /
