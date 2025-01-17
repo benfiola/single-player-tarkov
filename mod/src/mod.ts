@@ -1,10 +1,10 @@
 import { IPreSptLoadModAsync } from "@spt/models/external/IPreSptLoadModAsync";
 import { ILogger } from "@spt/models/spt/utils/ILogger";
+import { applyOperation, Operation } from "fast-json-patch";
 import { readFile, writeFile } from "fs/promises";
 import path from "path";
 import { DependencyContainer } from "tsyringe";
 import patches from "../config/config.json";
-import { applyOperation, Operation } from "../vendored/fast-json-patch";
 
 /**
  * Logger interface.

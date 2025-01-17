@@ -40,13 +40,16 @@ spt-build: spt-clone
 	mv $(cwd)/spt/source/project/build/ $(cwd)/spt/build
 
 .PHONY: mod-dev
-mod-dev: spt-clone mod-gen-types mod-vendored
-	# install mod dependencies
-	cd $(cwd)/mod && npm install
+mod-dev: spt-clone mod-gen-types mod-dependencies
 	# ensure spt user directory exists
 	mkdir -p $(cwd)/spt/source/project/user/mods
 	# create new symlink
 	ln -sf $(cwd)/mod $(cwd)/spt/source/project/user/mods/docker-image-helper-mod
+
+.PHONY: mod-dependencies
+mod-dependencies:
+	# install mod dependencies
+	cd $(cwd)/mod && npm install
 
 .PHONY: mod-gen-types
 mod-gen-types: spt-clone
@@ -54,15 +57,3 @@ mod-gen-types: spt-clone
 	cd $(cwd)/spt/source/project && npm run gen:types
 	# copy types to mod src directory
 	mv $(cwd)/spt/source/project/types $(cwd)/mod/types
-
-.PHONY: mod-vendored
-mod-vendored: 
-	# ensure vendored directory exists
-	mkdir -p $(cwd)/mod/vendored
-	rm -rf $(cwd)/mod/vendored/fast-json-patch
-	mkdir -p $(cwd)/mod/vendored/fast-json-patch
-	curl -o /tmp/archive.tar.gz -fsSL https://github.com/Starcounter-Jack/JSON-Patch/archive/refs/tags/3.1.1.tar.gz
-	tar xvzf /tmp/archive.tar.gz -C $(cwd)/mod/vendored/fast-json-patch --strip-components 1
-	rm -rf /tmp/archive.tar.gz
-
-	

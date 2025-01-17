@@ -3,6 +3,5 @@
 entrypoint/data
 entrypoint/spt
 mod/node_modules
-mod/vendored
 mod/types
 spt 

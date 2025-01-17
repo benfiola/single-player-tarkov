@@ -12,15 +12,16 @@ RUN apt -y update && \
     apt -y install git git-lfs make && \
     make spt-build
 
-FROM ubuntu:noble AS mod
+FROM node:20.11.1-bookworm AS mod
 WORKDIR /
 ADD Makefile Makefile
 ADD mod/config mod/config
 ADD mod/src mod/src
 ADD mod/package.json mod/package.json
+ADD mod/package-lock.json mod/package-lock.json
 RUN apt -y update && \
     apt -y install curl make tar && \
-    make mod-vendored
+    make mod-dependencies
 
 FROM ubuntu:noble AS final
 WORKDIR /
