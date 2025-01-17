@@ -15,6 +15,7 @@ Docker containers based off of this image rely upon the environment for configur
 | Name           | Default | Description                                                          |
 | -------------- | ------- | -------------------------------------------------------------------- |
 | CONFIG_PATCHES |         | A JSON string containing a mapping of files to lists of JSON patches |
+| DATA_DIRS      |         | Comma-separated list of additional directories to persist            |
 | GID            | 1000    | The GID to run the server under                                      |
 | MOD_URLS       |         | Comma-separated list of mod URLs to extract to the server directory  |
 | UID            | 1000    | The UID to run the server under                                      |
@@ -50,13 +51,16 @@ As an example - to configure SPT to use a different server port, you might use t
 ```
 
 > [!IMPORTANT]
-> The file path _must_ be relative to the SPT folder root. Absolute paths will be ignored!
+> The file path _must_ be relative to the SPT folder root. Absolute paths will fail!
 
 ## Persistence
 
 This container uses the `/data` volume for persistent data. If you want to persist data across container runs, you'll want to bind mount a volume to the `/data` folder.
 
-Currently, the only data that's persisted are profiles.
+Via the `DATA_DIRS` environment variable - and in addition to the `user/profiles` directory - you can specify additional sub-paths of the SPT folder that should be persisted in the `/data` directory. This is particularly useful for mods that write data to mod directory subfolders.
+
+> [!IMPORTANT]
+> The file path _must_ be relative to the SPT folder root. Absolute paths will fail!
 
 ## Running as non-root user
 

@@ -34,6 +34,7 @@ func requireWd() string {
 // Package level variables
 var (
 	envConfigPatches = "CONFIG_PATCHES"
+	envDataDirs      = "DATA_DIRS"
 	envGid           = "GID"
 	envModUrls       = "MOD_URLS"
 	envUid           = "UID"
@@ -260,9 +261,6 @@ func installMods(modUrls ...string) error {
 func getModUrlsFromEnv() []string {
 	modUrls := []string{}
 	modUrlString := os.Getenv(envModUrls)
-	if modUrlString == "" {
-		return modUrls
-	}
 	for _, modUrl := range strings.Split(modUrlString, ",") {
 		modUrl = strings.TrimSpace(modUrl)
 		if modUrl == "" {
@@ -339,39 +337,6 @@ func runServer() error {
 	pathServerBin := filepath.Join(pathSpt, "SPT.Server.exe")
 	_, err := runCmd([]string{pathServerBin}, CmdOpts{Attach: true, Cwd: pathSpt})
 	return err
-}
-
-// Symlinks folders from [pathData] into [pathSpt] to persist certain slices of information
-func symlinkPersistentData() error {
-	serverProfiles := filepath.Join(pathSpt, "user", "profiles")
-	persistentProfiles := filepath.Join(pathData, "user", "profiles")
-	serverProfilesParent := filepath.Dir(serverProfiles)
-
-	logger.Info("ensure directory", "path", serverProfilesParent)
-	err := os.MkdirAll(filepath.Dir(serverProfilesParent), 0755)
-	if err != nil {
-		return err
-	}
-
-	logger.Info("remove directory", "path", serverProfiles)
-	err = os.RemoveAll(serverProfiles)
-	if err != nil {
-		return err
-	}
-
-	logger.Info("ensure directory", "path", persistentProfiles)
-	err = os.MkdirAll(persistentProfiles, 0755)
-	if err != nil {
-		return err
-	}
-
-	logger.Info("symlink directory", "from", persistentProfiles, "to", serverProfiles)
-	err = os.Symlink(persistentProfiles, serverProfiles)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // A ConfigPatch represents a single JSONPatch object
@@ -497,6 +462,160 @@ func mergeConfigPatches(maps ...ConfigPatches) ConfigPatches {
 	return data
 }
 
+// Obtains a list of data directories from the environment
+func getDataDirsFromEnv() []string {
+	dataDirs := []string{}
+	dataDirsString := os.Getenv(envDataDirs)
+	for _, dataDir := range strings.Split(dataDirsString, ",") {
+		dataDir = strings.TrimSpace(dataDir)
+		if dataDir == "" {
+			continue
+		}
+		dataDirs = append(dataDirs, dataDir)
+	}
+	return dataDirs
+}
+
+// Merges lists of data directories into a single-deduplicated list
+func mergeDataDirs(lists ...[]string) []string {
+	final := []string{}
+	exists := map[string]bool{}
+	for _, list := range lists {
+		for _, path := range list {
+			_, ok := exists[path]
+			if ok {
+				continue
+			}
+			final = append(final, path)
+			exists[path] = true
+		}
+	}
+	return final
+}
+
+// DataDirTrieNode is a component of a [DataDirTrie] used to help validate a list of data directories
+type DataDirTrieNode struct {
+	Value    string
+	Children map[string]DataDirTrieNode
+	Leaf     bool
+}
+
+// DataDirTrie is a data structure used to help validate a list of data directories.
+type DataDirTrie struct {
+	Root DataDirTrieNode
+}
+
+// Validates a provided data dir.
+// Returns an error if the data dir is not relative
+// Returns an error if the data dir path is malformed
+// Returns an error if the data dir results in nested data dir paths.
+func (t DataDirTrie) Validate(relPath string) error {
+	if strings.HasPrefix(relPath, "/") {
+		return fmt.Errorf("path %s not relative", relPath)
+	}
+	for strings.HasSuffix(relPath, "/") {
+		relPath = strings.TrimRight(relPath, "/")
+	}
+
+	curr := t.Root
+	var parentLeaf *DataDirTrieNode
+	for _, part := range strings.Split(relPath, "/") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			return fmt.Errorf("malformed path %s", relPath)
+		}
+
+		if parentLeaf != nil && curr.Leaf {
+			parentLeaf = &curr
+		}
+
+		_, ok := curr.Children[part]
+		if !ok {
+			curr.Children[part] = DataDirTrieNode{
+				Children: map[string]DataDirTrieNode{},
+				Value:    part,
+			}
+		}
+		curr = curr.Children[part]
+	}
+
+	curr.Leaf = true
+
+	if len(curr.Children) > 0 || parentLeaf != nil {
+		return fmt.Errorf("path %s results in nested data dirs", relPath)
+	}
+
+	return nil
+}
+
+// Validates a list of data dirs.
+// Returns an error if a data dir does not validate.
+func validateDataDirs(relPaths []string) error {
+	trie := DataDirTrie{Root: DataDirTrieNode{
+		Children: map[string]DataDirTrieNode{},
+		Value:    "__root__",
+	}}
+	for _, relPath := range relPaths {
+		err := trie.Validate(relPath)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Symlinks a data dir from [pathData] to [pathSpt].
+func symlinkDataDir(relPath string) error {
+	sptDataDir := filepath.Join(pathSpt, relPath)
+	dataDir := filepath.Join(pathData, relPath)
+
+	err := os.MkdirAll(sptDataDir, 0755)
+	if err != nil {
+		return err
+	}
+
+	err = os.RemoveAll(sptDataDir)
+	if err != nil {
+		return err
+	}
+
+	err = os.MkdirAll(dataDir, 0755)
+	if err != nil {
+		return err
+	}
+
+	err = os.Symlink(dataDir, sptDataDir)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Symlinks folders from [pathData] into [pathSpt] to persist certain slices of information
+func symlinkDataDirs(dataDirs []string) error {
+	logger.Info("symlinking data dirs", "count", len(dataDirs))
+	err := validateDataDirs(dataDirs)
+	if err != nil {
+		return err
+	}
+
+	failed := false
+	for _, dataDir := range dataDirs {
+		err := symlinkDataDir(dataDir)
+		logger.Info("symlink data dir", "path", dataDir, "err", err)
+		if err != nil {
+			failed = true
+		}
+	}
+
+	if failed {
+		return fmt.Errorf("failed to symlink data dirs")
+	}
+
+	return nil
+}
+
 // Performs the pre-launch setup of the server.
 // This includes mod installation, server and mod configuration, server intialization
 // Finally, the server is launched in the foreground and blocks until exit.
@@ -535,7 +654,11 @@ func entrypoint() error {
 		return err
 	}
 
-	err = symlinkPersistentData()
+	dataDirs := mergeDataDirs(
+		[]string{"user/profiles"},
+		getDataDirsFromEnv(),
+	)
+	err = symlinkDataDirs(dataDirs)
 	if err != nil {
 		return err
 	}
