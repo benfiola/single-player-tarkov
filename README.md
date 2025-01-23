@@ -4,9 +4,9 @@ This repo hosts the supporting files and code to provide a [Single-player Tarkov
 
 ## Usage
 
-Docker images are hosted on the [Docker hub](https://hub.docker.com/r/benfiola/single-player-tarkov). Currently, images are tagged with the following format: `<entrypoint version>-spt<spt version>`.
+Docker images are hosted on the [Docker hub](https://hub.docker.com/r/benfiola/single-player-tarkov). Currently, images are tagged with the entrypoint version.
 
-Use the latest docker image with: `docker.io/benfiola/single-player-tarkov:latest-spt3.10.5`.
+Use the latest docker image with: `docker.io/benfiola/single-player-tarkov:latest`.
 
 ## Environment Variables
 
@@ -18,16 +18,24 @@ Docker containers based off of this image rely upon the environment for configur
 | DATA_DIRS      |         | Comma-separated list of additional directories to persist            |
 | GID            | 1000    | The GID to run the server under                                      |
 | MOD_URLS       |         | Comma-separated list of mod URLs to extract to the server directory  |
+| SPT_VERSION    |         | The SPT version that's built on startup and used                     |
 | UID            | 1000    | The UID to run the server under                                      |
+
+## Building SPT + Caching
+
+On startup, the docker image will attempt to build the SPT server version defined by the `SPT_VERSION` environmnent variable.
+
+To prevent unnecessary rebuilds, mount a local path to `/cache` to cache SPT server for future container restarts.
 
 ## Entrypoint
 
-The core functionality of this container is controlled by the [entrypoint](./entrypoint/main.go) and is written in golang.
+The core functionality of this container is controlled by the [entrypoint.go](./entrypoint.go) file and is written in golang.
 
 Prior to launching the server, the entrypoint is responsible for:
 
-- Ensuring that `/server` and `/data` directories have proper ownership if needed
+- Ensuring that directories have proper ownership if needed
 - Relaunching itself as a non-root user if needed
+- Building and installing the SPT server
 - Installing mods
 - Performing an initial launch of the server to generate configuration
 - Applying configuration patches to default configuration
