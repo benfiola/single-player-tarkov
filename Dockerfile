@@ -1,8 +1,11 @@
 FROM golang:1.23.4 AS entrypoint
 WORKDIR /
-ADD entrypoint src
-RUN cd /src && \
-    go build -o /entrypoint main.go
+ADD entrypoint.go entrypoint.go
+ADD go.mod go.mod
+ADD go.sum go.sum
+ADD Makefile Makefile
+ADD version.txt version.txt
+RUN go build -o /entrypoint entrypoint.go
 
 FROM node:20.11.1-bookworm AS server
 WORKDIR /
@@ -16,14 +19,14 @@ RUN apt -y update && \
 FROM ubuntu:noble AS final
 WORKDIR /
 COPY --from=entrypoint /entrypoint /entrypoint
-COPY --from=server /spt/build /spt
+COPY --from=server /spt /spt
 RUN apt -y update && \
     apt -y install curl gosu p7zip-full unzip && \
     userdel ubuntu && \
-    groupadd --gid=1000 spt && \
-    useradd --gid=spt --system --uid=1000 --home /data spt && \
+    groupadd --gid=1000 server && \
+    useradd --gid=server --system --uid=1000 --home /data server && \
     mkdir -p /data && \
-    chown -R spt:spt /data /spt
+    chown -R server:server /data /spt
 EXPOSE 6969/tcp
 VOLUME /data
 ENTRYPOINT ["/entrypoint"]
