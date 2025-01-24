@@ -1,5 +1,6 @@
-.tmp
-.vscode
-!.vscode/launch.template.json
+.vscode/*
+!.vscode/launch.json.template
+cache
 data
+entrypoint
 spt

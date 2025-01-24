@@ -9,7 +9,7 @@ on:
 run-name: ${{github.sha}}
 
 jobs:
-  prepare:
+  publish:
     runs-on: ubuntu-latest
     env:
       image_base: benfiola/single-player-tarkov
@@ -18,6 +18,8 @@ jobs:
     permissions:
       id-token: write
       contents: write
+    environment:
+      name: publish
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -59,35 +61,6 @@ jobs:
       - name: generate code
         run: |
           echo "${{steps.facts.outputs.version}}" > version.txt
-      - name: upload source artifact
-        uses: actions/upload-artifact@v4
-        with:
-          if-no-files-found: error
-          include-hidden-files: true
-          name: source
-          path: "*"
-    outputs:
-      docker_image: ${{steps.facts.outputs.docker_image}}
-      docker_tag: ${{steps.facts.outputs.docker_tag}}
-      is_main: ${{steps.facts.outputs.is_main}}
-      tag: ${{steps.facts.outputs.tag}}
-      version: ${{steps.facts.outputs.version}}
-
-  publish:
-    needs: [prepare]
-    runs-on: ubuntu-latest
-    environment:
-      name: publish
-    strategy:
-      matrix:
-        spt_server_version: ["3.10.5"]
-    steps:
-      - name: download source artifact
-        uses: actions/download-artifact@v4
-        with:
-          pattern: source
-          path: .
-          merge-multiple: true
       - name: docker login
         uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a
         with:
@@ -99,16 +72,12 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{needs.prepare.outputs.docker_image}}:${{needs.prepare.outputs.docker_tag}}-spt${{matrix.spt_server_version}}
-          build-args: |
-            SPT_SERVER_VERSION=${{matrix.spt_server_version}}
+            ${{steps.facts.outputs.docker_image}}:${{steps.facts.outputs.docker_tag}}
       - name: docker build + push (latest)
         uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671
-        if: "${{needs.prepare.outputs.is_main == '1'}}"
+        if: "${{steps.facts.outputs.is_main == '1'}}"
         with:
           context: .
           push: true
           tags: |
-            ${{needs.prepare.outputs.docker_image}}:latest-spt${{matrix.spt_server_version}}
-          build-args: |
-            SPT_SERVER_VERSION=${{matrix.spt_server_version}}
+            ${{steps.facts.outputs.docker_image}}:latest

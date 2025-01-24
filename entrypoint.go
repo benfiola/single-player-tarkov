@@ -4,6 +4,8 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -156,11 +158,77 @@ func (api *Api) SymlinkDataDirs(dataDirs []string) error {
 	return nil
 }
 
+// Installs spt to the spt directory if spt exists in the cache.  If spt does not exist in the cache, it is checked out, built and copied into the cache.
+// Returns an error if any step in this process fails.
+func (api *Api) InstallSpt(version string) error {
+	cachePath := filepath.Join(api.Directories["cache"], version)
+	_, err := os.Lstat(cachePath)
+	exists := true
+	if errors.Is(err, os.ErrNotExist) {
+		exists = false
+		err = nil
+	}
+	if err != nil {
+		return err
+	}
+	if !exists {
+		api.Logger.Info("build spt", "version", version)
+		subpaths, err := api.ListDir(api.Directories["cache"])
+		if err != nil {
+			return err
+		}
+		err = api.RemovePaths(subpaths...)
+		if err != nil {
+			return err
+		}
+		tmpPath := filepath.Join(api.Directories["cache"], ".tmp")
+		wd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		patchFile := filepath.Join(wd, "spt.patch")
+		_, err = os.Lstat(patchFile)
+		if err != nil {
+			return err
+		}
+		projectPath := filepath.Join(tmpPath, "project")
+		buildPath := filepath.Join(projectPath, "build")
+		commands := [][]any{
+			{[]string{"git", "clone", "https://github.com/sp-tarkov/server", tmpPath}, helperapi.CmdOpts{}},
+			{[]string{"git", "checkout", version}, helperapi.CmdOpts{Cwd: tmpPath}},
+			{[]string{"git", "apply", patchFile}, helperapi.CmdOpts{Cwd: tmpPath}},
+			{[]string{"git", "lfs", "pull"}, helperapi.CmdOpts{Cwd: tmpPath}},
+			{[]string{"npm", "install"}, helperapi.CmdOpts{Cwd: projectPath}},
+			{[]string{"npm", "run", "build:release"}, helperapi.CmdOpts{Cwd: projectPath}},
+			{[]string{"mv", buildPath, cachePath}, helperapi.CmdOpts{}},
+		}
+		for _, command := range commands {
+			cmdSlice := command[0].([]string)
+			opts := command[1].(helperapi.CmdOpts)
+			_, err := api.RunCommand(cmdSlice, opts)
+			if err != nil {
+				return err
+			}
+		}
+		err = api.RemovePaths(tmpPath)
+		if err != nil {
+			return err
+		}
+	}
+	api.Logger.Info("copy spt from cache")
+	_, err = api.RunCommand([]string{"cp", "-R", fmt.Sprintf("%s/.", cachePath), api.Directories["spt"]}, helperapi.CmdOpts{})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // EntrypointConfig is loaded from the environment and is used during [Entrypoint]
 type EntrypointConfig struct {
 	ConfigPatches ConfigPatches `env:"CONFIG_PATCHES"`
 	DataDirs      []string      `env:"DATA_DIRS"`
 	ModUrls       []string      `env:"MOD_URLS"`
+	SptVersion    string        `env:"SPT_VERSION"`
 }
 
 // Performs the pre-launch setup of the server.
@@ -175,6 +243,11 @@ func Entrypoint(ctx context.Context, api Api) error {
 	}
 
 	err = api.CreateDirs(api.Directories.Values()...)
+	if err != nil {
+		return err
+	}
+
+	err = api.InstallSpt(config.SptVersion)
 	if err != nil {
 		return err
 	}
@@ -220,8 +293,9 @@ func main() {
 	wd, _ := os.Getwd()
 	(&helper.Helper{
 		Directories: map[string]string{
-			"spt":  filepath.Join(wd, "spt"),
-			"data": filepath.Join(wd, "data"),
+			"cache": filepath.Join(wd, "cache"),
+			"data":  filepath.Join(wd, "data"),
+			"spt":   filepath.Join(wd, "spt"),
 		},
 		Entrypoint: RunCallback(Entrypoint),
 		Version:    Version,

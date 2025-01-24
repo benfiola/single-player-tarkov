@@ -36,6 +36,7 @@
         "git",
         "git-lfs",
         "gosu",
+        "make",
         "p7zip-full",
         "vim",
         "unzip"
