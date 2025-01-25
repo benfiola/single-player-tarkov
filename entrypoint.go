@@ -194,7 +194,6 @@ func (api *Api) InstallSpt(version string) error {
 		projectPath := filepath.Join(tmpPath, "project")
 		buildPath := filepath.Join(projectPath, "build")
 		commands := [][]any{
-			{[]string{"git", "lfs", "install", "--skip-smudge"}, helperapi.CmdOpts{}},
 			{[]string{"git", "clone", "https://github.com/sp-tarkov/server", tmpPath}, helperapi.CmdOpts{}},
 			{[]string{"git", "checkout", version}, helperapi.CmdOpts{Cwd: tmpPath}},
 			{[]string{"git", "apply", patchFile}, helperapi.CmdOpts{Cwd: tmpPath}},
