@@ -3,7 +3,7 @@ module github.com/benfiola/single-player-tarkov
 go 1.23.4
 
 require (
-	github.com/benfiola/game-server-helper v0.0.0-20250125042319-60b570c67eb5
+	github.com/benfiola/game-server-helper v0.0.0-20250125043048-79277bd5ef86
 	github.com/evanphx/json-patch/v5 v5.9.0
 )
 
