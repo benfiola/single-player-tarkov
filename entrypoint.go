@@ -211,6 +211,10 @@ func (api *Api) InstallSpt(version string) error {
 				return err
 			}
 		}
+
+		api.Logger.Info("sleeping")
+		time.Sleep(10 * time.Minute)
+
 		err = api.RemovePaths(tmpPath)
 		if err != nil {
 			return err
@@ -255,9 +259,6 @@ func Entrypoint(ctx context.Context, api Api) error {
 	if err != nil {
 		return err
 	}
-
-	api.Logger.Info("sleeping")
-	time.Sleep(10 * time.Minute)
 
 	err = api.InstallMods(config.ModUrls...)
 	if err != nil {
