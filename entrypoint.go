@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/benfiola/game-server-helper/pkg/helper"
 	"github.com/benfiola/game-server-helper/pkg/helperapi"
@@ -211,10 +210,6 @@ func (api *Api) InstallSpt(version string) error {
 				return err
 			}
 		}
-
-		api.Logger.Info("sleeping")
-		time.Sleep(10 * time.Minute)
-
 		err = api.RemovePaths(tmpPath)
 		if err != nil {
 			return err
