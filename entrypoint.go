@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/benfiola/game-server-helper/pkg/helper"
 	"github.com/benfiola/game-server-helper/pkg/helperapi"
@@ -241,6 +242,9 @@ func Entrypoint(ctx context.Context, api Api) error {
 	if err != nil {
 		return err
 	}
+	if config.SptVersion == "" {
+		return fmt.Errorf("spt version required")
+	}
 
 	err = api.CreateDirs(api.Directories.Values()...)
 	if err != nil {
@@ -251,6 +255,9 @@ func Entrypoint(ctx context.Context, api Api) error {
 	if err != nil {
 		return err
 	}
+
+	api.Logger.Info("sleeping")
+	time.Sleep(10 * time.Minute)
 
 	err = api.InstallMods(config.ModUrls...)
 	if err != nil {
