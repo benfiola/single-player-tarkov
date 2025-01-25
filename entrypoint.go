@@ -100,7 +100,7 @@ func (api *Api) ApplyConfigPatches(configPatches ConfigPatches) error {
 		if err != nil {
 			return err
 		}
-		err = api.ApplyJsonPatches(data, patches...)
+		err = api.ApplyJsonPatches(&data, patches...)
 		if err != nil {
 			return err
 		}
