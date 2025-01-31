@@ -30,6 +30,8 @@ github.com/benfiola/game-server-helper v0.0.0-20250131083256-860f191d569e h1:NJT
 github.com/benfiola/game-server-helper v0.0.0-20250131083256-860f191d569e/go.mod h1:DPBcfqEKjahVzVoHpU8Z0MvUYX/TZUzR+FsGGF63oDE=
 github.com/benfiola/game-server-helper v0.0.0-20250131184532-db0abf686a56 h1:AQ2OI6RlzFr2Jn06w7TLaqx8wYgQpR6+iDxBgRDT/xo=
 github.com/benfiola/game-server-helper v0.0.0-20250131184532-db0abf686a56/go.mod h1:DPBcfqEKjahVzVoHpU8Z0MvUYX/TZUzR+FsGGF63oDE=
+github.com/benfiola/game-server-helper v0.0.0-20250131201848-5d2dfbc20251 h1:aCO2x0yuxWTGlyMe+yEW3uIjlkyrLZd1ZTTAemm2SfE=
+github.com/benfiola/game-server-helper v0.0.0-20250131201848-5d2dfbc20251/go.mod h1:DPBcfqEKjahVzVoHpU8Z0MvUYX/TZUzR+FsGGF63oDE=
 github.com/caarlos0/env/v11 v11.3.1 h1:cArPWC15hWmEt+gWk7YBi7lEXTXCvpaSdCiZE2X5mCA=
 github.com/caarlos0/env/v11 v11.3.1/go.mod h1:qupehSf/Y0TUTsxKywqRt/vJjN5nz6vauiYEUUr8P4U=
 github.com/evanphx/json-patch/v5 v5.9.0 h1:kcBlZQbplgElYIlo/n1hJbls2z/1awpXxpRi0/FOJfg=

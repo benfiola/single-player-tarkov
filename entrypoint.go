@@ -19,18 +19,16 @@ func InstallMods(ctx context.Context, modUrls ...string) error {
 	for _, modUrl := range modUrls {
 		helper.Logger(ctx).Info("install mod", "url", modUrl)
 		key := filepath.Base(modUrl)
-		err := helper.CacheFile(ctx, key, helper.Dirs(ctx)["spt"], func(tempDir string) (string, error) {
-			fail := func(err error) (string, error) {
-				return "", err
-			}
-			archive := filepath.Join(tempDir, filepath.Base(modUrl))
-			extract := filepath.Join(tempDir, "extract")
-			err := helper.Download(ctx, modUrl, archive)
-			if err != nil {
-				return fail(err)
-			}
-			err = helper.Extract(ctx, archive, extract)
-			return extract, err
+		err := helper.CacheFile(ctx, key, helper.Dirs(ctx)["spt"], func(dest string) error {
+			return helper.CreateTempDir(ctx, func(tempDir string) error {
+				archive := filepath.Join(tempDir, filepath.Base(modUrl))
+				err := helper.Download(ctx, modUrl, archive)
+				if err != nil {
+					return err
+				}
+				err = helper.Extract(ctx, archive, dest)
+				return err
+			})
 		})
 		if err != nil {
 			return err
@@ -153,42 +151,40 @@ func SymlinkDataDirs(ctx context.Context, dataDirs []string) error {
 // Returns an error if any step in this process fails.
 func InstallSpt(ctx context.Context, version string) error {
 	key := fmt.Sprintf("spt-%s", version)
-	return helper.CacheFile(ctx, key, helper.Dirs(ctx)["spt"], func(tempDir string) (string, error) {
-		fail := func(err error) (string, error) {
-			return "", err
-		}
-		tempBuildPath := filepath.Join(tempDir, "build")
-		tempDestPath := filepath.Join(tempDir, "dest")
-		helper.Logger(ctx).Info("build spt", "version", version)
-		wd, err := os.Getwd()
-		if err != nil {
-			return fail(err)
-		}
-		patchFile := filepath.Join(wd, "spt.patch")
-		_, err = os.Lstat(patchFile)
-		if err != nil {
-			return fail(err)
-		}
-		projectPath := filepath.Join(tempBuildPath, "project")
-		buildPath := filepath.Join(projectPath, "build")
-		commands := [][]any{
-			{[]string{"git", "clone", "https://github.com/sp-tarkov/server", tempBuildPath}, helper.CmdOpts{}},
-			{[]string{"git", "checkout", version}, helper.CmdOpts{Cwd: tempBuildPath}},
-			{[]string{"git", "apply", patchFile}, helper.CmdOpts{Cwd: tempBuildPath}},
-			{[]string{"git", "lfs", "pull"}, helper.CmdOpts{Cwd: tempBuildPath}},
-			{[]string{"npm", "install"}, helper.CmdOpts{Cwd: projectPath}},
-			{[]string{"npm", "run", "build:release"}, helper.CmdOpts{Cwd: projectPath}},
-			{[]string{"mv", buildPath, tempDestPath}, helper.CmdOpts{}},
-		}
-		for _, command := range commands {
-			cmdSlice := command[0].([]string)
-			opts := command[1].(helper.CmdOpts)
-			_, err := helper.Command(ctx, cmdSlice, opts).Run()
+	return helper.CacheFile(ctx, key, helper.Dirs(ctx)["spt"], func(dest string) error {
+		return helper.CreateTempDir(ctx, func(tempDir string) error {
+			helper.Logger(ctx).Info("build spt", "version", version)
+			wd, err := os.Getwd()
 			if err != nil {
-				return fail(err)
+				return err
 			}
-		}
-		return tempDestPath, nil
+			patchFile := filepath.Join(wd, "spt.patch")
+			_, err = os.Lstat(patchFile)
+			if err != nil {
+				return err
+			}
+			projectPath := filepath.Join(tempDir, "project")
+			buildPath := filepath.Join(projectPath, "build")
+			commands := [][]any{
+				{[]string{"git", "clone", "https://github.com/sp-tarkov/server", tempDir}, helper.CmdOpts{}},
+				{[]string{"git", "checkout", version}, helper.CmdOpts{Cwd: tempDir}},
+				{[]string{"git", "apply", patchFile}, helper.CmdOpts{Cwd: tempDir}},
+				{[]string{"git", "lfs", "pull"}, helper.CmdOpts{Cwd: tempDir}},
+				{[]string{"npm", "install"}, helper.CmdOpts{Cwd: projectPath}},
+				{[]string{"npm", "run", "build:release"}, helper.CmdOpts{Cwd: projectPath}},
+				{[]string{"mv", buildPath, dest}, helper.CmdOpts{}},
+			}
+			for _, command := range commands {
+				cmdSlice := command[0].([]string)
+				opts := command[1].(helper.CmdOpts)
+				_, err := helper.Command(ctx, cmdSlice, opts).Run()
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+
 	})
 }
 
