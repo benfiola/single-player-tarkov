@@ -38,8 +38,9 @@
         "gosu",
         "make",
         "p7zip-full",
-        "vim",
-        "unzip"
+        "squashfs-tools",
+        "unzip",
+        "vim"
       ]
     }
   },

@@ -4,40 +4,33 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 
-	"github.com/benfiola/game-server-helper/pkg/helper"
-	"github.com/benfiola/game-server-helper/pkg/helperapi"
+	helper "github.com/benfiola/game-server-helper/pkg"
 )
-
-// Api wraps [helper.Api] and adds SPT specific methods to the struct
-type Api struct {
-	helper.Api
-}
-
-// Defines a callback that accepts a [context.Context] and an [Api]
-type Callback func(ctx context.Context, api Api) error
-
-// Converts a [Callback] into an [helper.Callback] for compatibility with [helper.Helper]
-func RunCallback(cb Callback) helper.Callback {
-	return func(ctx context.Context, parent helper.Api) error {
-		api := Api{Api: parent}
-		return cb(ctx, api)
-	}
-}
 
 // Installs the given mod urls to the spt path.
 // Raises an error if a url download fails.
 // Raises an error if mod extraction fails.
-func (api *Api) InstallMods(modUrls ...string) error {
+func InstallMods(ctx context.Context, modUrls ...string) error {
 	for _, modUrl := range modUrls {
-		api.Logger.Info("install mod", "url", modUrl)
-		err := api.Download(modUrl, func(modPath string) error {
-			return api.Extract(modPath, api.Directories["spt"])
+		helper.Logger(ctx).Info("install mod", "url", modUrl)
+		key := filepath.Base(modUrl)
+		err := helper.CacheFile(ctx, key, helper.Dirs(ctx)["spt"], func(tempDir string) (string, error) {
+			fail := func(err error) (string, error) {
+				return "", err
+			}
+			archive := filepath.Join(tempDir, filepath.Base(modUrl))
+			extract := filepath.Join(tempDir, "extract")
+			err := helper.Download(ctx, modUrl, archive)
+			if err != nil {
+				return fail(err)
+			}
+			err = helper.Extract(ctx, archive, extract)
+			return extract, err
 		})
 		if err != nil {
 			return err
@@ -51,60 +44,58 @@ func (api *Api) InstallMods(modUrls ...string) error {
 // This allows the server to generate first-launch files for subsequent modification.
 // Raises an error if the server fails to start.
 // Raises an error if the server is unconnectable after a set timeout.
-func (api *Api) InitializeServer() error {
-	api.Logger.Info("initialize server")
+func InitializeServer(ctx context.Context) error {
+	helper.Logger(ctx).Info("initialize server")
 	cb := func(complete func()) error {
 		response, err := http.Get("http://localhost:6969")
 		if err != nil || response.StatusCode != 200 {
 			return nil
 		}
-		api.Logger.Info("server initialized")
+		helper.Logger(ctx).Info("server initialized")
 		complete()
 		return nil
 	}
-	serverBin := filepath.Join(api.Directories["spt"], "SPT.Server.exe")
-	return api.RunCommandUntil([]string{serverBin}, helperapi.CmdUntilOpts{
-		CmdOpts:  helperapi.CmdOpts{Cwd: api.Directories["spt"]},
-		Callback: cb,
-	})
+	serverBin := filepath.Join(helper.Dirs(ctx)["spt"], "SPT.Server.exe")
+	_, err := helper.Command(ctx, []string{serverBin}, helper.CmdOpts{Cwd: helper.Dirs(ctx)["spt"], Until: cb}).Run()
+	return err
 }
 
 // Starts an spt server and blocks until exit.
 // Raises an error if the server exits with a non-zero exit code.
-func (api *Api) RunServer() error {
-	api.Logger.Info("run server")
-	pathServerBin := filepath.Join(api.Directories["spt"], "SPT.Server.exe")
-	_, err := api.RunCommand([]string{pathServerBin}, helperapi.CmdOpts{Attach: true, Cwd: api.Directories["spt"]})
+func RunServer(ctx context.Context) error {
+	helper.Logger(ctx).Info("run server")
+	pathServerBin := filepath.Join(helper.Dirs(ctx)["spt"], "SPT.Server.exe")
+	_, err := helper.Command(ctx, []string{pathServerBin}, helper.CmdOpts{Attach: true, Cwd: helper.Dirs(ctx)["spt"]}).Run()
 	return err
 }
 
 // ConfigPatches are a map of relative file path -> a list of json patches to apply
-type ConfigPatches map[string][]helperapi.JsonPatch
+type ConfigPatches map[string][]helper.JsonPatch
 
 // Parses a string into a [ConfigPatches] object.
 // Used to parse settings from the environment.
 func (cps *ConfigPatches) UnmarshalText(data []byte) error {
-	parsed := map[string][]helperapi.JsonPatch{}
+	parsed := map[string][]helper.JsonPatch{}
 	err := json.Unmarshal(data, &parsed)
 	*cps = ConfigPatches(parsed)
 	return err
 }
 
 // Applies config patches to files located in the spt server path
-func (api *Api) ApplyConfigPatches(configPatches ConfigPatches) error {
+func ApplyConfigPatches(ctx context.Context, configPatches ConfigPatches) error {
 	for relPath, patches := range configPatches {
-		api.Logger.Info("apply config patch", "count", len(patches), "path", relPath)
-		path := filepath.Join(api.Directories["spt"], relPath)
+		helper.Logger(ctx).Info("apply config patch", "count", len(patches), "path", relPath)
+		path := filepath.Join(helper.Dirs(ctx)["spt"], relPath)
 		data := map[string]any{}
-		err := api.UnmarshalFile(path, &data)
+		err := helper.UnmarshalFile(ctx, path, &data)
 		if err != nil {
 			return err
 		}
-		err = api.ApplyJsonPatches(&data, patches...)
+		err = helper.ApplyJsonPatches(ctx, &data, patches...)
 		if err != nil {
 			return err
 		}
-		err = api.MarshalFile(data, path)
+		err = helper.MarshalFile(ctx, data, path)
 		if err != nil {
 			return err
 		}
@@ -114,13 +105,13 @@ func (api *Api) ApplyConfigPatches(configPatches ConfigPatches) error {
 }
 
 // Merges several [ConfigPatches] objects into a single one.
-func (api *Api) MergeConfigPatches(maps ...ConfigPatches) ConfigPatches {
+func MergeConfigPatches(maps ...ConfigPatches) ConfigPatches {
 	data := ConfigPatches{}
 	for _, currMap := range maps {
 		for k, v := range currMap {
 			_, ok := data[k]
 			if !ok {
-				data[k] = []helperapi.JsonPatch{}
+				data[k] = []helper.JsonPatch{}
 			}
 			data[k] = append(data[k], v...)
 		}
@@ -129,7 +120,7 @@ func (api *Api) MergeConfigPatches(maps ...ConfigPatches) ConfigPatches {
 }
 
 // Merges lists of data directories into a single-deduplicated list
-func (api *Api) MergeDataDirs(lists ...[]string) []string {
+func MergeDataDirs(lists ...[]string) []string {
 	final := []string{}
 	exists := map[string]bool{}
 	for _, list := range lists {
@@ -146,11 +137,11 @@ func (api *Api) MergeDataDirs(lists ...[]string) []string {
 }
 
 // Symlinks folders from a data subpath to a spt subpath to persist certain slices of information
-func (api *Api) SymlinkDataDirs(dataDirs []string) error {
+func SymlinkDataDirs(ctx context.Context, dataDirs []string) error {
 	for _, dataDir := range dataDirs {
-		sptPath := filepath.Join(api.Directories["spt"], dataDir)
-		dataPath := filepath.Join(api.Directories["data"], dataDir)
-		err := api.SymlinkDir(dataPath, sptPath)
+		sptPath := filepath.Join(helper.Dirs(ctx)["spt"], dataDir)
+		dataPath := filepath.Join(helper.Dirs(ctx)["data"], dataDir)
+		err := helper.SymlinkDir(ctx, dataPath, sptPath)
 		if err != nil {
 			return err
 		}
@@ -160,67 +151,45 @@ func (api *Api) SymlinkDataDirs(dataDirs []string) error {
 
 // Installs spt to the spt directory if spt exists in the cache.  If spt does not exist in the cache, it is checked out, built and copied into the cache.
 // Returns an error if any step in this process fails.
-func (api *Api) InstallSpt(version string) error {
-	cachePath := filepath.Join(api.Directories["cache"], version)
-	_, err := os.Lstat(cachePath)
-	exists := true
-	if errors.Is(err, os.ErrNotExist) {
-		exists = false
-		err = nil
-	}
-	if err != nil {
-		return err
-	}
-	if !exists {
-		api.Logger.Info("build spt", "version", version)
-		subpaths, err := api.ListDir(api.Directories["cache"])
-		if err != nil {
-			return err
+func InstallSpt(ctx context.Context, version string) error {
+	key := fmt.Sprintf("spt-%s", version)
+	return helper.CacheFile(ctx, key, helper.Dirs(ctx)["spt"], func(tempDir string) (string, error) {
+		fail := func(err error) (string, error) {
+			return "", err
 		}
-		err = api.RemovePaths(subpaths...)
-		if err != nil {
-			return err
-		}
-		tmpPath := filepath.Join(api.Directories["cache"], ".tmp")
+		tempBuildPath := filepath.Join(tempDir, "build")
+		tempDestPath := filepath.Join(tempDir, "dest")
+		helper.Logger(ctx).Info("build spt", "version", version)
 		wd, err := os.Getwd()
 		if err != nil {
-			return err
+			return fail(err)
 		}
 		patchFile := filepath.Join(wd, "spt.patch")
 		_, err = os.Lstat(patchFile)
 		if err != nil {
-			return err
+			return fail(err)
 		}
-		projectPath := filepath.Join(tmpPath, "project")
+		projectPath := filepath.Join(tempBuildPath, "project")
 		buildPath := filepath.Join(projectPath, "build")
 		commands := [][]any{
-			{[]string{"git", "clone", "https://github.com/sp-tarkov/server", tmpPath}, helperapi.CmdOpts{}},
-			{[]string{"git", "checkout", version}, helperapi.CmdOpts{Cwd: tmpPath}},
-			{[]string{"git", "apply", patchFile}, helperapi.CmdOpts{Cwd: tmpPath}},
-			{[]string{"git", "lfs", "pull"}, helperapi.CmdOpts{Cwd: tmpPath}},
-			{[]string{"npm", "install"}, helperapi.CmdOpts{Cwd: projectPath}},
-			{[]string{"npm", "run", "build:release"}, helperapi.CmdOpts{Cwd: projectPath}},
-			{[]string{"mv", buildPath, cachePath}, helperapi.CmdOpts{}},
+			{[]string{"git", "clone", "https://github.com/sp-tarkov/server", tempBuildPath}, helper.CmdOpts{}},
+			{[]string{"git", "checkout", version}, helper.CmdOpts{Cwd: tempBuildPath}},
+			{[]string{"git", "apply", patchFile}, helper.CmdOpts{Cwd: tempBuildPath}},
+			{[]string{"git", "lfs", "pull"}, helper.CmdOpts{Cwd: tempBuildPath}},
+			{[]string{"npm", "install"}, helper.CmdOpts{Cwd: projectPath}},
+			{[]string{"npm", "run", "build:release"}, helper.CmdOpts{Cwd: projectPath}},
+			{[]string{"mv", buildPath, tempDestPath}, helper.CmdOpts{}},
 		}
 		for _, command := range commands {
 			cmdSlice := command[0].([]string)
-			opts := command[1].(helperapi.CmdOpts)
-			_, err := api.RunCommand(cmdSlice, opts)
+			opts := command[1].(helper.CmdOpts)
+			_, err := helper.Command(ctx, cmdSlice, opts).Run()
 			if err != nil {
-				return err
+				return fail(err)
 			}
 		}
-		err = api.RemovePaths(tmpPath)
-		if err != nil {
-			return err
-		}
-	}
-	api.Logger.Info("copy spt from cache")
-	_, err = api.RunCommand([]string{"cp", "-R", fmt.Sprintf("%s/.", cachePath), api.Directories["spt"]}, helperapi.CmdOpts{})
-	if err != nil {
-		return err
-	}
-	return nil
+		return tempDestPath, nil
+	})
 }
 
 // EntrypointConfig is loaded from the environment and is used during [Entrypoint]
@@ -235,9 +204,9 @@ type EntrypointConfig struct {
 // This includes mod installation, server and mod configuration, server intialization
 // Finally, the server is launched in the foreground and blocks until exit.
 // Returns an error if any step of the process fails.
-func Entrypoint(ctx context.Context, api Api) error {
+func Entrypoint(ctx context.Context) error {
 	config := EntrypointConfig{}
-	err := api.ParseEnv(&config)
+	err := helper.ParseEnv(ctx, &config)
 	if err != nil {
 		return err
 	}
@@ -245,29 +214,29 @@ func Entrypoint(ctx context.Context, api Api) error {
 		return fmt.Errorf("spt version required")
 	}
 
-	err = api.CreateDirs(api.Directories.Values()...)
+	err = helper.CreateDirs(ctx, helper.Dirs(ctx).Values()...)
 	if err != nil {
 		return err
 	}
 
-	err = api.InstallSpt(config.SptVersion)
+	err = InstallSpt(ctx, config.SptVersion)
 	if err != nil {
 		return err
 	}
 
-	err = api.InstallMods(config.ModUrls...)
+	err = InstallMods(ctx, config.ModUrls...)
 	if err != nil {
 		return err
 	}
 
-	err = api.InitializeServer()
+	err = InitializeServer(ctx)
 	if err != nil {
 		return err
 	}
 
-	err = api.ApplyConfigPatches(api.MergeConfigPatches(
+	err = ApplyConfigPatches(ctx, MergeConfigPatches(
 		ConfigPatches{
-			"SPT_Data/Server/configs/http.json": []helperapi.JsonPatch{
+			"SPT_Data/Server/configs/http.json": []helper.JsonPatch{
 				{Op: "replace", Path: "/ip", Value: "0.0.0.0"},
 				{Op: "replace", Path: "/backendIp", Value: "0.0.0.0"},
 			},
@@ -278,7 +247,7 @@ func Entrypoint(ctx context.Context, api Api) error {
 		return err
 	}
 
-	err = api.SymlinkDataDirs(api.MergeDataDirs(
+	err = SymlinkDataDirs(ctx, MergeDataDirs(
 		[]string{"user/profiles"},
 		config.DataDirs,
 	))
@@ -286,21 +255,20 @@ func Entrypoint(ctx context.Context, api Api) error {
 		return err
 	}
 
-	return api.RunServer()
+	return RunServer(ctx)
 }
 
 //go:embed version.txt
 var Version string
 
 func main() {
-	wd, _ := os.Getwd()
-	(&helper.Helper{
-		Directories: map[string]string{
-			"cache": filepath.Join(wd, "cache"),
-			"data":  filepath.Join(wd, "data"),
-			"spt":   filepath.Join(wd, "spt"),
+	(&helper.Entrypoint{
+		Dirs: map[string]string{
+			"cache": "./cache",
+			"data":  "./data",
+			"spt":   "./spt",
 		},
-		Entrypoint: RunCallback(Entrypoint),
-		Version:    Version,
+		Main:    Entrypoint,
+		Version: Version,
 	}).Run()
 }

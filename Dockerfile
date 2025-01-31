@@ -15,7 +15,7 @@ ENV ASDF_DATA_DIR="/asdf"
 ENV PATH="/asdf/installs/nodejs/${NODEJS_VERSION}/bin:/asdf/bin:${PATH}"
 WORKDIR /
 RUN apt -y update && \
-    apt -y install curl git git-lfs gosu p7zip-full unzip && \
+    apt -y install curl git git-lfs gosu p7zip-full squashfs-tools unzip && \
     git clone https://github.com/asdf-vm/asdf.git "${ASDF_HOME}" --branch "v${ASDF_VERSION}" && \
     asdf plugin add nodejs && \
     asdf install nodejs "${NODEJS_VERSION}" && \

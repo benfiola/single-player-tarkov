@@ -12,14 +12,16 @@ Use the latest docker image with: `docker.io/benfiola/single-player-tarkov:lates
 
 Docker containers based off of this image rely upon the environment for configuration. Here are the current settings:
 
-| Name           | Default | Description                                                          |
-| -------------- | ------- | -------------------------------------------------------------------- |
-| CONFIG_PATCHES |         | A JSON string containing a mapping of files to lists of JSON patches |
-| DATA_DIRS      |         | Comma-separated list of additional directories to persist            |
-| GID            | 1000    | The GID to run the server under                                      |
-| MOD_URLS       |         | Comma-separated list of mod URLs to extract to the server directory  |
-| SPT_VERSION    |         | The SPT version that's built on startup and used                     |
-| UID            | 1000    | The UID to run the server under                                      |
+| Name             | Default | Description                                                          |
+| ---------------- | ------- | -------------------------------------------------------------------- |
+| CACHE_ENABLED    | false   | Determines whether the file cache is enabled                         |
+| CACHE_SIZE_LIMIT | 0       | The size limit (in bytes) of the file cache                          |
+| CONFIG_PATCHES   | "{}"    | A JSON string containing a mapping of files to lists of JSON patches |
+| DATA_DIRS        | ""      | Comma-separated list of additional directories to persist            |
+| GID              | 1000    | The GID to run the server under                                      |
+| MOD_URLS         | ""      | Comma-separated list of mod URLs to extract to the server directory  |
+| SPT_VERSION      | ""      | The SPT version that's built on startup and used                     |
+| UID              | 1000    | The UID to run the server under                                      |
 
 ## Building SPT + Caching
 
