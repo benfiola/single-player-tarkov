@@ -18,7 +18,7 @@ import (
 func InstallMods(ctx context.Context, modUrls ...string) error {
 	for _, modUrl := range modUrls {
 		helper.Logger(ctx).Info("install mod", "url", modUrl)
-		key := filepath.Base(modUrl)
+		key := fmt.Sprintf("mod-%s", filepath.Base(modUrl))
 		err := helper.CacheFile(ctx, key, helper.Dirs(ctx)["spt"], func(dest string) error {
 			return helper.CreateTempDir(ctx, func(tempDir string) error {
 				archive := filepath.Join(tempDir, filepath.Base(modUrl))
