@@ -27,7 +27,10 @@ Docker containers based off of this image rely upon the environment for configur
 
 On startup, the docker image will attempt to build the SPT server version defined by the `SPT_VERSION` environmnent variable.
 
-To prevent unnecessary rebuilds, mount a local path to `/cache` to cache SPT server for future container restarts.
+To prevent unnecessary rebuilds, this entrypoint supports file caching. If you mount a local path to `/cache`, and set `CACHE_ENABLED="true"` - the file cache is enabled. You can customize file cache sizes by setting the `CACHE_SIZE_LIMIT` environment variable to a size (in megabytes).
+
+> [!IMPORTANT]
+> If the file cache is enabled, the entrypoint will fail if the size limit is less than the size of the dedicated server + mods - ensure to give your file cache sufficient space!
 
 ## Entrypoint
 
