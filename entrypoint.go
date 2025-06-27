@@ -8,8 +8,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 
 	helper "github.com/benfiola/game-server-helper/pkg"
+	"golang.org/x/mod/semver"
 )
 
 // Installs the given mod urls to the spt path.
@@ -147,6 +149,56 @@ func SymlinkDataDirs(ctx context.Context, dataDirs []string) error {
 	return nil
 }
 
+// Finds all patch files less than or equal to the provided version
+// Returns a list of patch files sorted in ascending version order
+func FindPatchFiles(ctx context.Context, version string) ([]string, error) {
+	wd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+
+	allPatchFiles, err := filepath.Glob(filepath.Join(wd, "spt-*.patch"))
+	if err != nil {
+		return nil, err
+	}
+
+	versionRegexp, err := regexp.Compile(`spt-(.+)\.patch$`)
+	if err != nil {
+		return nil, err
+	}
+
+	patchFileMap := map[string]string{}
+	versions := []string{}
+	for _, patchFile := range allPatchFiles {
+		match := versionRegexp.FindStringSubmatch(patchFile)
+		if match == nil {
+			continue
+		}
+		patchVersion := match[1]
+		semVersion := fmt.Sprintf("v%s", version)
+		semPatchVersion := fmt.Sprintf("v%s", patchVersion)
+		if semver.Compare(semVersion, semPatchVersion) == 1 {
+			continue
+		}
+		patchFileMap[semPatchVersion] = patchFile
+		versions = append(versions, semPatchVersion)
+	}
+	semver.Sort(versions)
+
+	patchFiles := []string{}
+	for _, version := range versions {
+		patchFiles = append(patchFiles, patchFileMap[version])
+	}
+
+	return patchFiles, nil
+}
+
+// Command is a helper that holds the command and options passed to helper.Command(...).Run()
+type Command struct {
+	Args []string
+	Opts helper.CmdOpts
+}
+
 // Installs spt to the spt directory if spt exists in the cache.  If spt does not exist in the cache, it is checked out, built and copied into the cache.
 // Returns an error if any step in this process fails.
 func InstallSpt(ctx context.Context, version string) error {
@@ -154,30 +206,34 @@ func InstallSpt(ctx context.Context, version string) error {
 	return helper.CacheFile(ctx, key, helper.Dirs(ctx)["spt"], func(dest string) error {
 		return helper.CreateTempDir(ctx, func(tempDir string) error {
 			helper.Logger(ctx).Info("build spt", "version", version)
-			wd, err := os.Getwd()
+
+			patchFiles, err := FindPatchFiles(ctx, version)
 			if err != nil {
 				return err
 			}
-			patchFile := filepath.Join(wd, "spt.patch")
-			_, err = os.Lstat(patchFile)
-			if err != nil {
-				return err
-			}
+			helper.Logger(ctx).Info("found patch files", "count", len(patchFiles))
+
 			projectPath := filepath.Join(tempDir, "project")
 			buildPath := filepath.Join(projectPath, "build")
-			commands := [][]any{
-				{[]string{"git", "clone", "https://github.com/sp-tarkov/server", tempDir}, helper.CmdOpts{}},
-				{[]string{"git", "checkout", version}, helper.CmdOpts{Cwd: tempDir}},
-				{[]string{"git", "apply", patchFile}, helper.CmdOpts{Cwd: tempDir}},
-				{[]string{"git", "lfs", "pull"}, helper.CmdOpts{Cwd: tempDir}},
-				{[]string{"npm", "install"}, helper.CmdOpts{Cwd: projectPath}},
-				{[]string{"npm", "run", "build:release"}, helper.CmdOpts{Cwd: projectPath}},
-				{[]string{"mv", buildPath, dest}, helper.CmdOpts{}},
+			commands := []Command{
+				{Args: []string{"git", "clone", "https://github.com/sp-tarkov/server", tempDir}, Opts: helper.CmdOpts{}},
+				{Args: []string{"git", "checkout", version}, Opts: helper.CmdOpts{Cwd: tempDir}},
 			}
+			for _, patchFile := range patchFiles {
+				commands = append(
+					commands,
+					Command{Args: []string{"git", "apply", patchFile}, Opts: helper.CmdOpts{Cwd: tempDir}},
+				)
+			}
+			commands = append(
+				commands,
+				Command{Args: []string{"git", "lfs", "pull"}, Opts: helper.CmdOpts{Cwd: tempDir}},
+				Command{Args: []string{"npm", "install"}, Opts: helper.CmdOpts{Cwd: projectPath}},
+				Command{Args: []string{"npm", "run", "build:release"}, Opts: helper.CmdOpts{Cwd: projectPath}},
+				Command{Args: []string{"mv", buildPath, dest}, Opts: helper.CmdOpts{}},
+			)
 			for _, command := range commands {
-				cmdSlice := command[0].([]string)
-				opts := command[1].(helper.CmdOpts)
-				_, err := helper.Command(ctx, cmdSlice, opts).Run()
+				_, err := helper.Command(ctx, command.Args, command.Opts).Run()
 				if err != nil {
 					return err
 				}

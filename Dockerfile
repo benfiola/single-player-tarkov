@@ -34,7 +34,7 @@ mkdir -p /cache /data /spt
 chown -R server:server /cache /data /spt
 EOF
 COPY --from=entrypoint /entrypoint /usr/local/bin/entrypoint
-ADD spt.patch spt.patch
+ADD spt-*.patch .
 EXPOSE 6969/tcp
 VOLUME /cache
 VOLUME /data
